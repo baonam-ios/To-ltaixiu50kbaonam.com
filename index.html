@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NETRAX CORE - TỰ HỌC SÁNG CHIỀU & MD5 ADAPTIVE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #050811; color: #f0f4ff; min-height: 100vh; }
+        .glass { background: rgba(13, 20, 36, 0.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .tai-color { color: #3b82f6; }
+        .xiu-color { color: #ef4444; }
+        .bg-tai { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.4); }
+        .bg-xiu { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.4); }
+        .pulse { animation: pulse 1.5s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .glow-tai { box-shadow: 0 0 25px rgba(59, 130, 246, 0.25); }
+        .glow-xiu { box-shadow: 0 0 25px rgba(239, 68, 68, 0.25); }
+        
+        .weight-bar-bg { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; margin-top: 4px; }
+        .weight-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease, background-color 0.4s ease; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.4); border-radius: 2px; }
+        
+        .history-row { transition: all 0.2s ease; border-left: 3px solid transparent; }
+        .history-row:hover { background: rgba(255,255,255,0.03); }
+        .history-row.correct { border-left-color: #22c55e; background: rgba(34, 197, 94, 0.04); }
+        .history-row.wrong { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.04); }
+        .badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+        .badge-correct { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .badge-wrong { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        
+        .tab-btn { padding: 12px 16px; border: none; background: transparent; color: #64748b; font-weight: 700; font-size: 0.85rem; cursor: pointer; border-bottom: 2px solid transparent; transition: 0.3s; flex: 1; text-align: center; }
+        .tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; background: rgba(59, 130, 246, 0.05); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.25s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="max-w-6xl mx-auto p-3 md:p-5">
+
+    <!-- HEADER -->
+    <header class="glass rounded-2xl p-4 mb-4 flex flex-col md:flex-row justify-between items-center">
+        <div class="flex items-center gap-3 mb-3 md:mb-0">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-sun-plant-wilt text-white text-lg" id="header-icon"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-black bg-gradient-to-r from-emerald-400 via-cyan-300 to-teal-400 bg-clip-text text-transparent">NETRAX PRO - CA SÁNG CHIỀU</h1>
+                <p class="text-xs text-slate-400">Không Xung Đột • Tự Động Chuyển Ca • Phân Tích Đa Năng</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div id="shift-badge" class="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border bg-amber-500/10 border-amber-500/30 text-amber-400">
+                <i class="fa-solid fa-sun"></i><span>ĐANG CHẠY: CA SÁNG</span>
+            </div>
+            <button onclick="NetraxCore.resetMemory()" class="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-400 text-xs font-semibold transition">
+                <i class="fa-solid fa-trash-can mr-1"></i>Reset Tiến Trình
+            </button>
+        </div>
+    </header>
+
+    <!-- TABS -->
+    <div class="glass rounded-2xl mb-4 flex overflow-hidden border border-slate-700/40">
+        <button class="tab-btn active" data-tab="tab-auto">
+            <i class="fa-solid fa-brain mr-2 text-emerald-400"></i>AUTO PHÂN TÍCH
+        </button>
+        <button class="tab-btn" data-tab="tab-md5">
+            <i class="fa-solid fa-calculator mr-2 text-cyan-400"></i>MD5 ADAPTIVE
+        </button>
+        <button class="tab-btn" data-tab="tab-manual">
+            <i class="fa-solid fa-scale-balanced mr-2 text-purple-400"></i>PHÂN TÍCH TỈ LỆ
+        </button>
+    </div>
+
+    <!-- TAB 1: SELF LEARNING (GIỮ NGUYÊN) -->
+    <div id="tab-auto" class="tab-content active">
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <!-- UY TÍN THUẬT TOÁN ĐANG KÍCH HOẠT -->
+            <div class="glass rounded-2xl p-4 flex flex-col justify-between order-2 md:order-1 col-span-1 border border-slate-700/50">
+                <div>
+                    <div class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-3 flex items-center justify-between">
+                        <span><i class="fa-solid fa-sliders mr-1.5 text-emerald-400"></i>Thuật Toán Ca Hiện Tại</span>
+                        <span class="text-[9px] text-slate-500">(Lưu thiết bị)</span>
+                    </div>
+
+                    <div id="active-algorithms-container" class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-xs font-semibold mb-1">
+                                <span id="algo1-name" class="text-slate-200">1. Thuật Toán Cũ</span>
+                                <span id="algo1-val" class="text-emerald-400 font-mono">1.0</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mb-1" id="algo1-desc">Mô tả</div>
+                            <div class="weight-bar-bg"><div id="algo1-bar" class="weight-bar-fill bg-emerald-500" style="width: 20%"></div></div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs font-semibold mb-1">
+                                <span id="algo2-name" class="text-slate-200">2. Thuật Toán Mới</span>
+                                <span id="algo2-val" class="text-emerald-400 font-mono">1.0</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mb-1" id="algo2-desc">Mô tả</div>
+                            <div class="weight-bar-bg"><div id="algo2-bar" class="weight-bar-fill bg-emerald-500" style="width: 20%"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 p-2 bg-slate-900/60 rounded-xl text-[10px] text-slate-400 italic text-center border border-slate-800">
+                    <i class="fa-solid fa-shield-halved text-emerald-400 mr-1"></i>Đã loại bỏ các thuật toán xung đột tín hiệu.
+                </div>
+            </div>
+
+            <!-- DỰ ĐOÁN & PHIÊN -->
+            <div class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 order-1 md:order-2">
+                <!-- Session vừa ra -->
+                <div class="glass rounded-2xl p-4 flex flex-col justify-center items-center text-center">
+                    <div class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Phiên Vừa Mở</div>
+                    <div class="text-2xl font-black mt-1 text-slate-100" id="last-session">#-------</div>
+                    <div class="flex items-center justify-center gap-3 my-2">
+                        <div class="flex gap-1.5 text-xl" id="dice-container">
+                            <i class="fa-solid fa-square text-slate-700"></i>
+                            <i class="fa-solid fa-square text-slate-700"></i>
+                            <i class="fa-solid fa-square text-slate-700"></i>
+                        </div>
+                        <div class="text-xl font-black text-yellow-400" id="total-score">--</div>
+                    </div>
+                    <div class="text-2xl font-black" id="last-result">WAITING</div>
+                </div>
+
+                <!-- Dự đoán tiếp theo -->
+                <div class="glass rounded-2xl p-4 flex flex-col items-center justify-center relative border-2 transition-all duration-300 pt-8" id="prediction-card">
+                    <div class="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 shadow-md">
+                        <i class="fa-solid fa-stopwatch text-yellow-400 text-xs pulse"></i>
+                        <span class="text-[10px] text-slate-300 font-medium">Phiên tiếp:</span>
+                        <span id="session-timer" class="text-xs font-mono font-black text-cyan-400">50s</span>
+                    </div>
+
+                    <div class="absolute top-2 right-3 text-[10px] text-slate-400 font-bold" id="next-session">#-------</div>
+                    
+                    <div class="text-5xl md:text-6xl font-black my-2 drop-shadow-2xl transition-all duration-300" id="ai-prediction">
+                        TÍNH...
+                    </div>
+                    
+                    <div class="text-xs text-slate-300 font-medium text-center px-3 py-1 bg-black/40 rounded-lg border border-slate-700/50" id="prediction-reason">
+                        Đang phân tích ca...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- THỐNG KÊ -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="glass rounded-xl p-3 text-center border-b-2 border-green-500/50">
+                <div class="text-xs text-slate-400">Thắng (Đúng)</div>
+                <div class="text-xl font-bold text-green-400" id="stat-correct">0</div>
+            </div>
+            <div class="glass rounded-xl p-3 text-center border-b-2 border-red-500/50">
+                <div class="text-xs text-slate-400">Thua (Sai)</div>
+                <div class="text-xl font-bold text-red-400" id="stat-wrong">0</div>
+            </div>
+            <div class="glass rounded-xl p-3 text-center border-b-2 border-yellow-500/50">
+                <div class="text-xs text-slate-400">Tỉ Lệ Thắng</div>
+                <div class="text-xl font-bold text-yellow-400" id="stat-accuracy">0%</div>
+            </div>
+            <div class="glass rounded-xl p-3 text-center border-b-2 border-cyan-500/50">
+                <div class="text-xs text-slate-400">Phiên Học Được</div>
+                <div class="text-xl font-bold text-cyan-400" id="stat-total-learned">0</div>
+            </div>
+        </div>
+
+        <!-- BẢNG LỊCH SỬ -->
+        <div class="glass rounded-2xl flex flex-col overflow-hidden h-[220px]">
+            <div class="p-3 border-b border-slate-700/40 flex justify-between items-center bg-slate-900/40">
+                <h2 class="font-bold text-xs uppercase tracking-wider text-slate-300">
+                    <i class="fa-solid fa-clock-rotate-left mr-2 text-emerald-400"></i>Nhật Ký Tự Học Ca Đã Lưu
+                </h2>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="sticky top-0 bg-slate-900/90 text-slate-400 uppercase tracking-wider">
+                        <tr>
+                            <th class="py-2 px-4">Phiên</th>
+                            <th class="py-2 px-4">Hệ Thống Chốt</th>
+                            <th class="py-2 px-4">Kết Quả Bàn</th>
+                            <th class="py-2 px-4 text-center">Tình Trạng Tự Học</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body" class="divide-y divide-slate-800/60"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: MD5 NÂNG CẤP (GIỮ NGUYÊN) -->
+    <div id="tab-md5" class="tab-content">
+        <div class="glass rounded-2xl p-4 md:p-5 mb-4 border border-slate-700/40">
+            <h3 class="text-sm font-bold text-slate-300 mb-4"><i class="fa-solid fa-shield-halved text-cyan-400 mr-2"></i>GIẢI MÃ MD5 ĐA THUẬT TOÁN</h3>
+            <div class="flex flex-col md:flex-row gap-3 mb-4">
+                <input type="text" id="md5Input" placeholder="Nhập chuỗi MD5 (32 ký tự Hex)..." maxlength="32" class="flex-1 px-4 py-3 bg-slate-900/80 border border-slate-700/80 rounded-xl text-white font-mono text-sm outline-none focus:border-cyan-500 transition">
+                <button id="btnMd5Solve" class="px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:opacity-90 rounded-xl font-bold text-white text-sm transition shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-square-root-variable mr-2"></i>GIẢI MÃ MD5
+                </button>
+            </div>
+
+            <!-- MD5 RESULT & MANUAL LEARNING PANEL -->
+            <div id="md5ResultPanel" style="display:none;" class="p-4 rounded-xl bg-slate-900/80 border border-slate-700/70">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                    <div>
+                        <div class="text-xs text-slate-400 uppercase font-bold mb-1">Kết Quả Đề Xuất:</div>
+                        <div class="text-4xl font-black" id="md5Prediction">--</div>
+                        <div class="text-xs text-cyan-400 mt-1" id="md5Detail">Độ tin cậy: 100%</div>
+                    </div>
+
+                    <!-- NÚT NẠP HỌC SAI / BÁO THUA THỰC TẾ -->
+                    <div class="flex items-center gap-2 mt-2 md:mt-0">
+                        <button id="btnMd5Correct" class="px-4 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-bold text-xs hover:bg-emerald-500/30 transition">
+                            <i class="fa-solid fa-check mr-1.5"></i>✅ Chuẩn
+                        </button>
+                        <button id="btnMd5LearnWrong" class="px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400 font-bold text-xs hover:bg-red-500/30 transition pulse">
+                            <i class="fa-solid fa-graduation-cap mr-1.5"></i>❌ BÁO THUA (HỌC LẠI)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-3 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex justify-between items-center" id="md5LearnStatus">
+                    <span><i class="fa-solid fa-microchip mr-1 text-cyan-400"></i>Bitwise XOR + Hex Shift + Byte Rotate</span>
+                    <span id="md5LearnedCounter" class="text-yellow-400 font-bold">Đã học: 0 bài</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: PHÂN TÍCH TỈ LỆ THỦ CÔNG (TAB MỚI) -->
+    <div id="tab-manual" class="tab-content">
+        <div class="glass rounded-2xl p-4 md:p-5 mb-4 border border-slate-700/40">
+            <h3 class="text-sm font-bold text-slate-300 mb-4"><i class="fa-solid fa-keyboard text-purple-400 mr-2"></i>NHẬP TỔNG SỐ TÀI / XỈU BÀN ĐANG CHẠY</h3>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs text-slate-400 font-bold uppercase mb-1">Tổng Số Tài Đã Ra</label>
+                    <input type="number" id="manualTai" placeholder="VD: 58" class="w-full px-4 py-3 bg-slate-900/80 border border-blue-500/30 rounded-xl text-blue-400 font-bold text-lg outline-none focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 font-bold uppercase mb-1">Tổng Số Xỉu Đã Ra</label>
+                    <input type="number" id="manualXiu" placeholder="VD: 40" class="w-full px-4 py-3 bg-slate-900/80 border border-red-500/30 rounded-xl text-red-400 font-bold text-lg outline-none focus:border-red-500 transition">
+                </div>
+            </div>
+            
+            <button id="btnManualAnalyze" class="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90 rounded-xl font-bold text-white text-sm transition shadow-lg shadow-purple-500/20">
+                <i class="fa-solid fa-magnifying-glass-chart mr-2"></i>PHÂN TÍCH HỒI QUY XÁC SUẤT
+            </button>
+
+            <!-- KẾT QUẢ PHÂN TÍCH -->
+            <div id="manualResultPanel" style="display:none;" class="mt-5 p-4 rounded-xl bg-slate-900/80 border border-slate-700/70">
+                <div class="text-xs text-slate-400 uppercase font-bold mb-3"><i class="fa-solid fa-chart-pie mr-1 text-purple-400"></i>Biểu Đồ Phân Bổ:</div>
+                
+                <div class="flex justify-between text-xs font-bold mb-1">
+                    <span class="text-blue-400" id="percentTaiText">Tài: 0%</span>
+                    <span class="text-red-400" id="percentXiuText">Xỉu: 0%</span>
+                </div>
+                <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex mb-4 border border-slate-700">
+                    <div id="barTai" class="h-full bg-blue-500 transition-all duration-700 ease-out" style="width: 50%"></div>
+                    <div id="barXiu" class="h-full bg-red-500 transition-all duration-700 ease-out" style="width: 50%"></div>
+                </div>
+                
+                <div class="text-center p-4 rounded-xl border bg-black/40 mt-4 transition-all" id="manualRecommendation">
+                    <!-- Text dc generate o JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// TABS SWITCHING LOGIC (Giữ nguyên, tự động tương thích tab mới)
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.getElementById(this.dataset.tab).classList.add('active');
+    });
+});
+
+// CORE ENGINE (SÁNG / CHIỀU + MD5 ADAPTIVE)
+const NetraxCore = (function() {
+    const CONFIG = {
+        API_URL: "https://wtxmd52.tele68.com/v1/txmd5/sessions",
+        AT: localStorage.getItem('lc79_at') || 'c4f3f5fa0c97d8c282a1b204f5158356',
+        TOKEN: localStorage.getItem('lc79_token') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        INTERVAL: 3000,
+        STORAGE_KEY: "NETRAX_SHIFT_CORE_V2",
+        MD5_STORAGE_KEY: "NETRAX_MD5_LEARN_V2"
+    };
+
+    let state = {
+        history: [],
+        evaluatedHistory: [],
+        currentSessionId: null,
+        weights: {
+            sang: { algo1: 1.0, algo2: 1.0 },
+            chieu: { algo1: 1.0, algo2: 1.0 }
+        },
+        pendingEvaluation: null,
+        stats: { correct: 0, wrong: 0, totalLearned: 0 }
+    };
+
+    let md5State = {
+        w1: 1.0, w2: 1.0, w3: 1.0, biasShift: 0, invert: false, learnedCount: 0, lastResult: null
+    };
+
+    function getCurrentShift() {
+        const hour = new Date().getHours();
+        return (hour >= 5 && hour < 12) ? 'sang' : 'chieu';
+    }
+
+    function algo_Sang_EMA(txList) {
+        const recent = txList.slice(-6);
+        const countT = recent.filter(x => x === 'T').length;
+        return countT >= 3 ? 'T' : 'X';
+    }
+
+    function algo_Sang_Momentum(txList) {
+        let streak = 1;
+        for (let i = txList.length - 1; i > 0; i--) {
+            if (txList[i] === txList[i-1]) streak++;
+            else break;
+        }
+        const last = txList[txList.length - 1];
+        if (streak >= 2) return last;
+        return last === 'T' ? 'X' : 'T';
+    }
+
+    function algo_Chieu_PingPong(txList) {
+        const last = txList[txList.length - 1];
+        const last2 = txList.slice(-2).join('');
+        if (last2 === 'TT' || last2 === 'XX') return last === 'T' ? 'X' : 'T';
+        return last === 'T' ? 'X' : 'T';
+    }
+
+    function algo_Chieu_MeanReversion(txList) {
+        const recent12 = txList.slice(-12);
+        const countT = recent12.filter(x => x === 'T').length;
+        const countX = recent12.length - countT;
+        if (countT >= 8) return 'X';
+        if (countX >= 8) return 'T';
+        return txList[txList.length - 1] === 'T' ? 'X' : 'T';
+    }
+
+    function makePrediction(txList) {
+        if (txList.length < 5) return { finalPred: 'T', reason: 'Đang nạp dữ liệu...', shift: 'sang' };
+
+        const shift = getCurrentShift();
+        const w = state.weights[shift];
+        let pred1, pred2, name1, name2;
+
+        if (shift === 'sang') {
+            pred1 = algo_Sang_EMA(txList);
+            pred2 = algo_Sang_Momentum(txList);
+            name1 = "Quán Tính EMA";
+            name2 = "Gia Tốc Momentum";
+        } else {
+            pred1 = algo_Chieu_PingPong(txList);
+            pred2 = algo_Chieu_MeanReversion(txList);
+            name1 = "Nhịp Đảo Ping-Pong";
+            name2 = "Hồi Quy Cân Bằng";
+        }
+
+        let scoreT = 0, scoreX = 0;
+        if (pred1 === 'T') scoreT += w.algo1; else scoreX += w.algo1;
+        if (pred2 === 'T') scoreT += w.algo2; else scoreX += w.algo2;
+
+        let finalPred = scoreT >= scoreX ? 'T' : 'X';
+        let mainAlgo = w.algo1 >= w.algo2 ? name1 : name2;
+        let mainWeight = Math.max(w.algo1, w.algo2);
+
+        return {
+            shift: shift,
+            subPreds: { algo1: pred1, algo2: pred2 },
+            finalPred: finalPred,
+            reason: `Ca ${shift === 'sang' ? 'Sáng' : 'Chiều'}: Ưu tiên ${mainAlgo} (${mainWeight.toFixed(1)}đ)`
+        };
+    }
+
+    function learnOutcome(actualTx, pendingObj) {
+        if (!pendingObj || !pendingObj.subPreds) return 'resync';
+        const shift = pendingObj.shift;
+        const LR = 0.5;
+
+        if (pendingObj.subPreds.algo1 === actualTx) state.weights[shift].algo1 = Math.min(10.0, state.weights[shift].algo1 + LR);
+        else state.weights[shift].algo1 = Math.max(0.1, state.weights[shift].algo1 - LR);
+
+        if (pendingObj.subPreds.algo2 === actualTx) state.weights[shift].algo2 = Math.min(10.0, state.weights[shift].algo2 + LR);
+        else state.weights[shift].algo2 = Math.max(0.1, state.weights[shift].algo2 - LR);
+
+        state.stats.totalLearned++;
+        if (pendingObj.finalPred === actualTx) {
+            state.stats.correct++; return 'correct';
+        } else {
+            state.stats.wrong++; return 'wrong';
+        }
+    }
+
+    function solveMD5(hexStr) {
+        if (hexStr.length !== 32) return null;
+
+        let bytesDec = [];
+        for (let i = 0; i < 16; i++) bytesDec.push(parseInt(hexStr.substr(i * 2, 2), 16));
+        let score1 = ((bytesDec[0]^bytesDec[1]^bytesDec[2]^bytesDec[3]^bytesDec[4])%6+1) +
+                     ((bytesDec[5]^bytesDec[6]^bytesDec[7]^bytesDec[8]^bytesDec[9])%6+1) +
+                     ((bytesDec[10]^bytesDec[11]^bytesDec[12]^bytesDec[13]^bytesDec[14]^bytesDec[15])%6+1);
+        let pred1 = score1 >= 11 ? 'T' : 'X';
+
+        let sumHex = 0;
+        for (let i = 0; i < 32; i++) sumHex += parseInt(hexStr[i], 16);
+        let score2 = (sumHex + md5State.biasShift) % 16;
+        let pred2 = score2 >= 8 ? 'T' : 'X';
+
+        let rotateVal = (bytesDec[0] ^ bytesDec[15]) + (bytesDec[2] ^ bytesDec[13]);
+        let pred3 = (rotateVal % 2 === 0) ? 'T' : 'X';
+
+        let scoreT = (pred1 === 'T' ? md5State.w1 : 0) + (pred2 === 'T' ? md5State.w2 : 0) + (pred3 === 'T' ? md5State.w3 : 0);
+        let scoreX = (pred1 === 'X' ? md5State.w1 : 0) + (pred2 === 'X' ? md5State.w2 : 0) + (pred3 === 'X' ? md5State.w3 : 0);
+
+        let rawPred = scoreT >= scoreX ? 'T' : 'X';
+        let finalPred = md5State.invert ? (rawPred === 'T' ? 'X' : 'T') : rawPred;
+
+        md5State.lastResult = { hexStr, rawPred, finalPred, pred1, pred2, pred3, score1 };
+        return md5State.lastResult;
+    }
+
+    function learnMD5Wrong() {
+        if (!md5State.lastResult) return;
+        const last = md5State.lastResult;
+        const targetCorrect = last.finalPred === 'T' ? 'X' : 'T'; 
+
+        if (last.pred1 !== targetCorrect) md5State.w1 = Math.max(0.1, md5State.w1 - 0.4); else md5State.w1 += 0.5;
+        if (last.pred2 !== targetCorrect) md5State.w2 = Math.max(0.1, md5State.w2 - 0.4); else md5State.w2 += 0.5;
+        if (last.pred3 !== targetCorrect) md5State.w3 = Math.max(0.1, md5State.w3 - 0.4); else md5State.w3 += 0.5;
+
+        if (last.pred1 !== targetCorrect && last.pred2 !== targetCorrect && last.pred3 !== targetCorrect) {
+            md5State.invert = !md5State.invert;
+            md5State.biasShift = (md5State.biasShift + 3) % 16;
+        }
+
+        md5State.learnedCount++;
+        saveMD5Memory();
+        const updatedRes = solveMD5(last.hexStr);
+        renderMD5UI(updatedRes, `⚠️ Đã nạp học sai! Hệ thống tự đảo chiều công thức (+${md5State.learnedCount} bài).`);
+    }
+
+    function renderMD5UI(res, customMsg) {
+        document.getElementById('md5ResultPanel').style.display = 'block';
+        const el = document.getElementById('md5Prediction');
+        const textPred = res.finalPred === 'T' ? 'TÀI' : 'XỈU';
+        
+        el.textContent = `${textPred} (${res.score1} Điểm)`;
+        el.className = `text-4xl font-black ${textPred === 'TÀI' ? 'tai-color' : 'xiu-color'}`;
+
+        document.getElementById('md5Detail').textContent = customMsg || `Phân tích: W1=${md5State.w1.toFixed(1)}, W2=${md5State.w2.toFixed(1)}, W3=${md5State.w3.toFixed(1)}`;
+        document.getElementById('md5LearnedCounter').textContent = `Đã học: ${md5State.learnedCount} bài`;
+    }
+
+    let countdownVal = 50;
+
+    function startTimerLoop() {
+        setInterval(() => {
+            if (countdownVal > 0) countdownVal--; else countdownVal = 50;
+            const timerEl = document.getElementById('session-timer');
+            if (timerEl) timerEl.textContent = countdownVal + 's';
+        }, 1000);
+    }
+
+    function loadMemory() {
+        try {
+            const raw = localStorage.getItem(CONFIG.STORAGE_KEY);
+            if (raw) {
+                const data = JSON.parse(raw);
+                if (data.weights) state.weights = data.weights;
+                if (data.stats) state.stats = data.stats;
+                if (data.evaluatedHistory) state.evaluatedHistory = data.evaluatedHistory;
+                const tbody = document.getElementById('history-body');
+                tbody.innerHTML = '';
+                state.evaluatedHistory.forEach(item => renderRow(item.session, item.pred, item.actual, item.status));
+            }
+            const rawMD5 = localStorage.getItem(CONFIG.MD5_STORAGE_KEY);
+            if (rawMD5) md5State = { ...md5State, ...JSON.parse(rawMD5) };
+        } catch(e) {}
+    }
+
+    function saveMemory() {
+        try {
+            localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify({
+                weights: state.weights, stats: state.stats, evaluatedHistory: state.evaluatedHistory.slice(0, 50)
+            }));
+        } catch(e) {}
+    }
+
+    function saveMD5Memory() {
+        try {
+            localStorage.setItem(CONFIG.MD5_STORAGE_KEY, JSON.stringify({
+                w1: md5State.w1, w2: md5State.w2, w3: md5State.w3,
+                biasShift: md5State.biasShift, invert: md5State.invert, learnedCount: md5State.learnedCount
+            }));
+        } catch(e) {}
+    }
+
+    function updateShiftAndWeightsUI() {
+        const shift = getCurrentShift();
+        const badge = document.getElementById('shift-badge');
+        const icon = document.getElementById('header-icon');
+
+        if (shift === 'sang') {
+            badge.className = "px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border bg-amber-500/10 border-amber-500/30 text-amber-400";
+            badge.innerHTML = `<i class="fa-solid fa-sun"></i><span>CA SÁNG (BÁM TREND)</span>`;
+            icon.className = "fa-solid fa-sun text-amber-300 text-lg";
+
+            document.getElementById('algo1-name').textContent = "1. Quán Tính Xu Hướng (Cũ)";
+            document.getElementById('algo1-desc').textContent = "Bám sát cầu bệt, chạy theo độ nghiêng xu hướng.";
+            document.getElementById('algo2-name').textContent = "2. Gia Tốc Động Lực (Mới)";
+            document.getElementById('algo2-desc').textContent = "Tính độ dài chuỗi để bắt bệt gia tốc.";
+        } else {
+            badge.className = "px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border bg-indigo-500/10 border-indigo-500/30 text-indigo-400";
+            badge.innerHTML = `<i class="fa-solid fa-moon"></i><span>CA CHIỀU/TỐI (NHỊP ĐẢO)</span>`;
+            icon.className = "fa-solid fa-moon text-indigo-300 text-lg";
+
+            document.getElementById('algo1-name').textContent = "1. Nhịp Đảo Chu Kỳ (Cũ)";
+            document.getElementById('algo1-desc').textContent = "Chuyên bắt nhịp đảo 1-1, 2-2, cầu cặp.";
+            document.getElementById('algo2-name').textContent = "2. Hồi Quy Cân Bằng (Mới)";
+            document.getElementById('algo2-desc').textContent = "Cân bằng lại xác suất khi Tài/Xỉu lệch khung.";
+        }
+
+        const w = state.weights[shift];
+        document.getElementById('algo1-val').textContent = w.algo1.toFixed(1);
+        document.getElementById('algo2-val').textContent = w.algo2.toFixed(1);
+
+        document.getElementById('algo1-bar').style.width = (w.algo1 / 10 * 100) + '%';
+        document.getElementById('algo2-bar').style.width = (w.algo2 / 10 * 100) + '%';
+        
+        const total = state.stats.correct + state.stats.wrong;
+        document.getElementById('stat-correct').textContent = state.stats.correct;
+        document.getElementById('stat-wrong').textContent = state.stats.wrong;
+        document.getElementById('stat-accuracy').textContent = total > 0 ? ((state.stats.correct / total) * 100).toFixed(1) + '%' : '0%';
+        document.getElementById('stat-total-learned').textContent = state.stats.totalLearned;
+    }
+
+    function renderRow(session, pred, actual, status) {
+        const row = document.createElement('tr');
+        row.className = `history-row ${status}`;
+        let badge = status === 'correct' ? '<span class="badge badge-correct">✅ ĐÚNG</span>' : '<span class="badge badge-wrong">❌ SAI</span>';
+        
+        row.innerHTML = `
+            <td class="py-2 px-4 font-mono font-semibold">#${session}</td>
+            <td class="py-2 px-4 font-bold ${pred === 'T' ? 'text-blue-400' : 'text-red-400'}">${pred === 'T' ? 'TÀI' : 'XỈU'}</td>
+            <td class="py-2 px-4 font-bold ${actual === 'T' ? 'text-blue-400' : 'text-red-400'}">${actual === 'T' ? 'TÀI' : 'XỈU'}</td>
+            <td class="py-2 px-4 text-center">${badge}</td>
+        `;
+        const tbody = document.getElementById('history-body');
+        tbody.prepend(row);
+        while(tbody.children.length > 40) tbody.removeChild(tbody.lastChild);
+    }
+
+    async function tick() {
+        try {
+            const url = `${CONFIG.API_URL}?cp=R&cl=R&pf=web&at=${CONFIG.AT}`;
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${CONFIG.TOKEN}` } });
+            if (!res.ok) return;
+            const rawData = await res.json();
+            if (!rawData || !Array.isArray(rawData.list)) return;
+
+            const list = rawData.list.sort((a, b) => a.id - b.id).map(item => ({
+                session: item.id, dice: item.dices || [], total: item.point || 0, tx: item.point >= 11 ? 'T' : 'X'
+            }));
+
+            if (!list.length) return;
+            const latest = list[list.length - 1];
+
+            if (!state.currentSessionId) {
+                state.history = list; state.currentSessionId = latest.session;
+                const analysis = makePrediction(list.map(x => x.tx));
+                state.pendingEvaluation = { sessionId: latest.session + 1, subPreds: analysis.subPreds, finalPred: analysis.finalPred, shift: analysis.shift };
+                updateUI(latest, analysis, latest.session + 1);
+                countdownVal = 50; 
+                return;
+            }
+
+            if (latest.session > state.currentSessionId) {
+                if (state.pendingEvaluation && state.pendingEvaluation.sessionId === latest.session) {
+                    let status = learnOutcome(latest.tx, state.pendingEvaluation);
+                    state.evaluatedHistory.unshift({ session: latest.session, pred: state.pendingEvaluation.finalPred, actual: latest.tx, status });
+                    renderRow(latest.session, state.pendingEvaluation.finalPred, latest.tx, status);
+                }
+                state.history = list; state.currentSessionId = latest.session;
+                const nextAnalysis = makePrediction(list.map(x => x.tx));
+                state.pendingEvaluation = { sessionId: latest.session + 1, subPreds: nextAnalysis.subPreds, finalPred: nextAnalysis.finalPred, shift: nextAnalysis.shift };
+                updateUI(latest, nextAnalysis, latest.session + 1);
+                countdownVal = 50; 
+                saveMemory();
+            }
+        } catch(e) {}
+    }
+
+    function updateUI(latest, analysis, nextSess) {
+        document.getElementById('last-session').textContent = '#' + latest.session;
+        document.getElementById('total-score').textContent = latest.total;
+        
+        const diceIcons = ['fa-dice-one', 'fa-dice-two', 'fa-dice-three', 'fa-dice-four', 'fa-dice-five', 'fa-dice-six'];
+        document.getElementById('dice-container').innerHTML = latest.dice.map(d => `<i class="fa-solid ${diceIcons[d-1]} text-slate-300 text-xl"></i>`).join('');
+
+        const lastRes = document.getElementById('last-result');
+        lastRes.textContent = latest.tx === 'T' ? 'TÀI' : 'XỈU';
+        lastRes.className = `text-2xl font-black ${latest.tx === 'T' ? 'tai-color' : 'xiu-color'}`;
+
+        document.getElementById('next-session').textContent = '#' + nextSess;
+        const predEl = document.getElementById('ai-prediction');
+        const cardEl = document.getElementById('prediction-card');
+        
+        predEl.textContent = analysis.finalPred === 'T' ? 'TÀI' : 'XỈU';
+        if (analysis.finalPred === 'T') {
+            predEl.className = 'text-5xl md:text-6xl font-black my-2 drop-shadow-2xl tai-color';
+            cardEl.className = 'glass rounded-2xl p-4 flex flex-col items-center justify-center relative border-2 bg-tai glow-tai pt-8';
+        } else {
+            predEl.className = 'text-5xl md:text-6xl font-black my-2 drop-shadow-2xl xiu-color';
+            cardEl.className = 'glass rounded-2xl p-4 flex flex-col items-center justify-center relative border-2 bg-xiu glow-xiu pt-8';
+        }
+        document.getElementById('prediction-reason').textContent = analysis.reason;
+        updateShiftAndWeightsUI();
+    }
+
+    return {
+        init: function() {
+            loadMemory(); updateShiftAndWeightsUI(); startTimerLoop(); tick(); setInterval(tick, CONFIG.INTERVAL);
+        },
+        resetMemory: function() {
+            if (confirm("Reset lại toàn bộ tiến trình học?")) {
+                localStorage.removeItem(CONFIG.STORAGE_KEY); localStorage.removeItem(CONFIG.MD5_STORAGE_KEY);
+                location.reload();
+            }
+        },
+        solveMD5: solveMD5, learnMD5Wrong: learnMD5Wrong, renderMD5UI: renderMD5UI
+    };
+})();
+
+// XỬ LÝ SỰ KIỆN TAB MD5
+document.getElementById('btnMd5Solve').addEventListener('click', function() {
+    const val = document.getElementById('md5Input').value.trim().toLowerCase();
+    if (val.length !== 32) return alert("Vui lòng nhập đủ 32 ký tự MD5!");
+    NetraxCore.renderMD5UI(NetraxCore.solveMD5(val));
+});
+document.getElementById('btnMd5LearnWrong').addEventListener('click', NetraxCore.learnMD5Wrong);
+document.getElementById('btnMd5Correct').addEventListener('click', () => alert("Đã ghi nhận độ chính xác."));
+
+// XỬ LÝ SỰ KIỆN TAB PHÂN TÍCH THỦ CÔNG MỚI
+document.getElementById('btnManualAnalyze').addEventListener('click', function() {
+    const taiVal = parseInt(document.getElementById('manualTai').value) || 0;
+    const xiuVal = parseInt(document.getElementById('manualXiu').value) || 0;
+
+    if (taiVal === 0 && xiuVal === 0) {
+        alert("Vui lòng nhập Tổng số Tài và Xỉu để phân tích!");
+        return;
+    }
+
+    const total = taiVal + xiuVal;
+    const percentTai = ((taiVal / total) * 100).toFixed(1);
+    const percentXiu = ((xiuVal / total) * 100).toFixed(1);
+
+    document.getElementById('percentTaiText').textContent = `TÀI: ${taiVal} (${percentTai}%)`;
+    document.getElementById('percentXiuText').textContent = `XỈU: ${xiuVal} (${percentXiu}%)`;
+
+    document.getElementById('barTai').style.width = `${percentTai}%`;
+    document.getElementById('barXiu').style.width = `${percentXiu}%`;
+
+    let resultBox = document.getElementById('manualRecommendation');
+    let diff = Math.abs(taiVal - xiuVal);
+
+    if (diff <= 3) {
+        resultBox.className = "text-center p-4 rounded-xl border border-yellow-500/50 bg-yellow-500/10 transition-all";
+        resultBox.innerHTML = `
+            <div class="text-yellow-400 font-black text-xl mb-1">THẾ TRẬN CÂN BẰNG</div>
+            <div class="text-xs text-slate-300 font-medium">Tỷ lệ Tài/Xỉu đang ở thế ngang nhau. Nhịp cầu lúc này thường có xu hướng đi ngắn (1-1, 2-2) hoặc nhảy loạn. Hạn chế đánh bệt.</div>
+        `;
+    } else if (taiVal > xiuVal) {
+        resultBox.className = "text-center p-4 rounded-xl border border-red-500/50 bg-red-500/10 transition-all";
+        resultBox.innerHTML = `
+            <div class="text-red-400 font-black text-xl mb-1">DỰ ĐOÁN TỚI: ƯU TIÊN XỈU</div>
+            <div class="text-xs text-slate-300 font-medium">Tài đang chiếm ưu thế (${percentTai}%). Dựa trên nguyên lý <b>Hồi Quy Cân Bằng (Mean Reversion)</b>, hệ thống sẽ sớm phải nhả XỈU để cân đối lại xác suất. Chờ gãy bệt để vào Xỉu.</div>
+        `;
+    } else {
+        resultBox.className = "text-center p-4 rounded-xl border border-blue-500/50 bg-blue-500/10 transition-all";
+        resultBox.innerHTML = `
+            <div class="text-blue-400 font-black text-xl mb-1">DỰ ĐOÁN TỚI: ƯU TIÊN TÀI</div>
+            <div class="text-xs text-slate-300 font-medium">Xỉu đang chiếm ưu thế (${percentXiu}%). Dựa trên nguyên lý <b>Hồi Quy Cân Bằng (Mean Reversion)</b>, hệ thống sẽ sớm phải nhả TÀI để cân đối lại xác suất. Chờ gãy bệt để vào Tài.</div>
+        `;
+    }
+
+    document.getElementById('manualResultPanel').style.display = 'block';
+});
+
+window.addEventListener('DOMContentLoaded', NetraxCore.init);
+</script>
+</body>
+</html>
